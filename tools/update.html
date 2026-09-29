@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Update-Werkzeug</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    h1.page { font-size: 1.7rem; letter-spacing: -.02em; }
+    .lead { color: var(--muted); margin-top: 8px; max-width: 70ch; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); margin-top: 22px; }
+    .card > h2 { font-size: 1.1rem; margin-bottom: 14px; }
+    .drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 34px 20px; text-align: center; cursor: pointer; color: var(--muted); transition: border-color .15s, background .15s; }
+    .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+    .drop strong { color: var(--text); }
+    .log { list-style: none; margin: 14px 0 0; padding: 0; font-size: .92rem; display: grid; gap: 4px; }
+    .log li::before { display: inline-block; width: 1.4em; }
+    .log .ok::before { content: "✓"; color: #16803c; font-weight: 700; }
+    .log .skip::before { content: "–"; color: var(--muted); }
+    .log .err::before { content: "✕"; color: #c0362c; font-weight: 700; }
+    .log .err { color: #c0362c; }
+    .form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+    .form .full { grid-column: 1 / -1; }
+    label.f { display: grid; gap: 4px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+    input[type=text], input[type=url], input[type=email], textarea {
+      font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; width: 100%;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    .group { margin-top: 26px; }
+    .group h3 { font-size: 1rem; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    .items label { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; background: var(--bg); }
+    .items label:has(input:not(:checked)) { opacity: .5; }
+    .items input { margin-top: 5px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+    .items .t { font-weight: 600; }
+    .items .s { color: var(--muted); font-size: .88rem; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    button.btn { cursor: pointer; font: inherit; font-weight: 600; }
+    .hint { color: var(--muted); font-size: .9rem; margin-top: 12px; }
+    .warn { color: #a05a00; font-size: .9rem; margin-top: 10px; }
+    ol.steps { padding-left: 20px; color: var(--muted); }
+    ol.steps li { margin-top: 4px; }
+    @media (max-width: 640px) { .form { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-in">
+      <strong class="brand">Update-Werkzeug</strong>
+      <a class="btn" href="../index.html">Zur Homepage</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1 class="page">LinkedIn-Export einlesen</h1>
+    <p class="lead">Alles läuft lokal in deinem Browser – es wird nichts hochgeladen oder an Dritte gesendet. Das Werkzeug liest nur Positionen, Ausbildung, Zertifikate, Kompetenzen und Name/Headline/Kurzprofil. Nachrichten, Kontakte, Adresse, Geburtsdatum u. Ä. aus dem Export werden bewusst ignoriert.</p>
+
+    <section class="card">
+      <h2>1 · Dateien hinzufügen</h2>
+      <div id="drop" class="drop" tabindex="0" role="button" aria-label="Dateien auswählen oder hierher ziehen">
+        <p><strong>LinkedIn-ZIP hier ablegen</strong> oder klicken zum Auswählen</p>
+        <p style="font-size:.9rem;margin-top:6px">Auch einzelne CSV-Dateien gehen. Optional: deine bisherige <code>daten.js</code> dazulegen, damit Ausblendungen und Änderungen erhalten bleiben.</p>
+      </div>
+      <input id="file" type="file" multiple accept=".zip,.csv,.js" hidden>
+      <ul id="log" class="log" aria-live="polite"></ul>
+      <p class="hint">LinkedIn: Einstellungen &amp; Datenschutz → Datenschutz → „Kopie deiner Daten abrufen“ → Auswahl „Größeres Datenarchiv“ bzw. die Positionen/Ausbildung/Zertifikate/Kompetenzen wählen.</p>
+    </section>
+
+    <section class="card" id="edit" hidden>
+      <h2>2 · Prüfen und auswählen</h2>
+
+      <div class="form">
+        <label class="f">Name<input type="text" id="f_name" autocomplete="off"></label>
+        <label class="f">Titel / Headline<input type="text" id="f_titel" autocomplete="off"></label>
+        <label class="f full">Kurzprofil<textarea id="f_kurzprofil"></textarea></label>
+        <label class="f">Ort<input type="text" id="f_ort" autocomplete="off"></label>
+        <label class="f">LinkedIn-Profil (URL)<input type="url" id="f_linkedin" placeholder="https://www.linkedin.com/in/…" autocomplete="off"></label>
+        <label class="f">E-Mail (optional, öffentlich sichtbar!)<input type="email" id="f_email" autocomplete="off"></label>
+        <label class="f">Foto (optional, Pfad z. B. img/foto.jpg)<input type="text" id="f_foto" autocomplete="off"></label>
+      </div>
+
+      <div class="group"><h3>Karriere <span class="count" id="c_karriere"></span></h3><ul class="items" id="l_karriere"></ul></div>
+      <div class="group"><h3>Qualifikationen <span class="count" id="c_qualifikationen"></span></h3><ul class="items" id="l_qualifikationen"></ul></div>
+      <div class="group"><h3>Kompetenzen <span class="count" id="c_kompetenzen"></span></h3><ul class="items" id="l_kompetenzen"></ul></div>
+      <p class="hint">Häkchen entfernt = Eintrag erscheint nicht auf der Homepage (bleibt aber gemerkt, wenn du beim nächsten Mal deine <code>daten.js</code> mit hinzufügst).</p>
+    </section>
+
+    <section class="card" id="out" hidden>
+      <h2>3 · Herunterladen und veröffentlichen</h2>
+      <div class="row">
+        <button class="btn primary" id="dl" type="button">daten.js herunterladen</button>
+        <button class="btn" id="reset" type="button">Neu beginnen</button>
+      </div>
+      <p class="warn" id="warn" hidden></p>
+      <ol class="steps">
+        <li>Heruntergeladene <code>daten.js</code> in den Ordner <code>data/</code> der Homepage kopieren und die alte Datei ersetzen.</li>
+        <li>Lokal <code>index.html</code> öffnen und prüfen.</li>
+        <li>Änderung ins GitHub-Repository übernehmen (Commit &amp; Push bzw. „Upload files“ im Browser). Die Seite aktualisiert sich danach automatisch.</li>
+      </ol>
+    </section>
+  </main>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- Whitelist: nur diese Dateien werden gelesen ---------- */
+  var WHITELIST = {
+    "positions.csv": "positions",
+    "education.csv": "education",
+    "certifications.csv": "certs",
+    "skills.csv": "skills",
+    "profile.csv": "profile"
+  };
+
+  var state = {
+    prev: null,                       // bisherige daten.js (optional)
+    imported: { positions: null, education: null, certs: null, skills: null, profile: null },
+    data: null
+  };
+  var ignoredCount = 0;
+
+  /* ---------- Log ---------- */
+  function log(kind, text) {
+    var li = document.createElement("li");
+    li.className = kind;
+    li.textContent = text;
+    $("log").appendChild(li);
+  }
+
+  /* ---------- ZIP lesen (ohne Bibliothek, nutzt eingebaute Entpackung des Browsers) ---------- */
+  async function readZip(buf) {
+    var dv = new DataView(buf), u8 = new Uint8Array(buf), eocd = -1;
+    for (var i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65557); i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error("Keine gültige ZIP-Datei.");
+    var count = dv.getUint16(eocd + 10, true);
+    var p = dv.getUint32(eocd + 16, true);
+    if (count === 0xFFFF || p === 0xFFFFFFFF) throw new Error("ZIP64 (sehr großes Archiv) wird nicht unterstützt – bitte die CSV-Dateien einzeln entpacken und hinzufügen.");
+    var entries = [];
+    for (var n = 0; n < count; n++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      var method = dv.getUint16(p + 10, true);
+      var csize = dv.getUint32(p + 20, true);
+      var nlen = dv.getUint16(p + 28, true), elen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+      var lho = dv.getUint32(p + 42, true);
+      var name = new TextDecoder("utf-8").decode(u8.subarray(p + 46, p + 46 + nlen));
+      entries.push({ name: name, method: method, csize: csize, lho: lho });
+      p += 46 + nlen + elen + clen;
+    }
+    async function extract(e) {
+      var lnlen = dv.getUint16(e.lho + 26, true), lelen = dv.getUint16(e.lho + 28, true);
+      var start = e.lho + 30 + lnlen + lelen;
+      var data = u8.subarray(start, start + e.csize);
+      if (e.method === 0) return data;
+      if (e.method === 8) {
+        if (typeof DecompressionStream === "undefined") throw new Error("Dieser Browser kann ZIP nicht entpacken – bitte einen aktuellen Chrome/Edge/Firefox/Safari verwenden oder die CSVs einzeln hinzufügen.");
+        var stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+        return new Uint8Array(await new Response(stream).arrayBuffer());
+      }
+      throw new Error("Nicht unterstützte ZIP-Komprimierung (" + e.method + ").");
+    }
+    return { entries: entries, extract: extract };
+  }
+
+  /* ---------- CSV lesen ---------- */
+  function parseCSV(text) {
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    var rows = [], row = [], f = "", q = false, c;
+    for (var i = 0; i < text.length; i++) {
+      c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; }
+        else f += c;
+      } else if (c === '"') q = true;
+      else if (c === ",") { row.push(f); f = ""; }
+      else if (c === "\n" || c === "\r") {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(f); f = ""; rows.push(row); row = [];
+      } else f += c;
+    }
+    if (f !== "" || row.length) { row.push(f); rows.push(row); }
+    return rows;
+  }
+  function norm(s) { return (s || "").trim().toLowerCase().replace(/\s+/g, " "); }
+  // Findet die Kopfzeile (LinkedIn setzt manchmal Hinweiszeilen davor) und liefert Objekte
+  function table(rows, candidates) {
+    var hi = -1;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].some(function (x) { return candidates.indexOf(norm(x)) >= 0; })) { hi = i; break; }
+    }
+    if (hi < 0) return null;
+    var head = rows[hi].map(norm);
+    return rows.slice(hi + 1)
+      .filter(function (r) { return r.some(function (x) { return x.trim() !== ""; }); })
+      .map(function (r) { var o = {}; head.forEach(function (k, j) { o[k] = (r[j] || "").trim(); }); return o; });
+  }
+  function g(o, names) {
+    for (var i = 0; i < names.length; i++) if (o[names[i]]) return o[names[i]];
+    return "";
+  }
+
+  /* ---------- Datum -> "JJJJ-MM" oder "JJJJ" ---------- */
+  var MONTH_MAP = { jan: 1, feb: 2, mar: 3, "mär": 3, apr: 4, may: 5, mai: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, okt: 10, nov: 11, dec: 12, dez: 12 };
+  function pad(n) { n = String(n); return n.length < 2 ? "0" + n : n; }
+  function parseDate(s) {
+    s = (s || "").trim();
+    if (!s) return null;
+    var m;
+    if ((m = /^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/.exec(s))) return m[1] + "-" + pad(m[2]);
+    if ((m = /^(\d{1,2})[\/.](\d{4})$/.exec(s))) return m[2] + "-" + pad(m[1]);
+    if ((m = /^(\d{4})$/.exec(s))) return m[1];
+    if ((m = /^([A-Za-zäÄ]+)\.?,?\s+(?:\d{1,2},?\s+)?(\d{4})$/.exec(s))) {
+      var w = m[1].toLowerCase();
+      var mm = MONTH_MAP[w.slice(0, 4)] || MONTH_MAP[w.slice(0, 3)];
+      if (mm) return m[2] + "-" + pad(mm);
+    }
+    m = /(\d{4})/.exec(s);
+    return m ? m[1] : null;
+  }
+  function safeUrl(u) { return /^https?:\/\//i.test(u || "") ? u : ""; }
+
+  /* ---------- CSV -> Datenmodell ---------- */
+  function fromPositions(rows) {
+    var t = table(rows, ["company name", "company"]); if (!t) return null;
+    return t.map(function (o) {
+      return {
+        firma: g(o, ["company name", "company"]), titel: g(o, ["title"]), ort: g(o, ["location"]),
+        beschreibung: g(o, ["description"]),
+        start: parseDate(g(o, ["started on", "start date"])), ende: parseDate(g(o, ["finished on", "end date"])),
+        sichtbar: true
+      };
+    }).filter(function (x) { return x.firma || x.titel; });
+  }
+  function fromEducation(rows) {
+    var t = table(rows, ["school name", "school"]); if (!t) return null;
+    return t.map(function (o) {
+      var school = g(o, ["school name", "school"]), degree = g(o, ["degree name", "degree"]);
+      return {
+        art: "ausbildung", name: degree || school, aussteller: degree ? school : "",
+        beschreibung: g(o, ["notes"]),
+        start: parseDate(g(o, ["start date", "started on"])), ende: parseDate(g(o, ["end date", "finished on"])),
+        sichtbar: true
+      };
+    }).filter(function (x) { return x.name; });
+  }
+  function fromCerts(rows) {
+    var t = table(rows, ["name"]); if (!t) return null;
+    return t.map(function (o) {
+      return {
+        art: "zertifikat", name: g(o, ["name"]), aussteller: g(o, ["authority"]), url: safeUrl(g(o, ["url"])),
+        start: parseDate(g(o, ["started on", "issued on"])), ende: parseDate(g(o, ["finished on", "expires on"])),
+        sichtbar: true
+      };
+    }).filter(function (x) { return x.name; });
+  }
+  function fromSkills(rows) {
+    var t = table(rows, ["name"]); if (!t) return null;
+    return t.map(function (o) { return { name: g(o, ["name"]), sichtbar: true }; }).filter(function (x) { return x.name; });
+  }
+  function fromProfile(rows) {
+    var t = table(rows, ["first name", "headline"]); if (!t || !t.length) return null;
+    var o = t[0]; // Adresse, Geburtsdatum usw. werden bewusst NICHT gelesen
+    return {
+      name: (g(o, ["first name"]) + " " + g(o, ["last name"])).trim(),
+      titel: g(o, ["headline"]), kurzprofil: g(o, ["summary"])
+    };
+  }
+  var PARSERS = { positions: fromPositions, education: fromEducation, certs: fromCerts, skills: fromSkills, profile: fromProfile };
+  var LABEL = { positions: "Positions.csv", education: "Education.csv", certs: "Certifications.csv", skills: "Skills.csv", profile: "Profile.csv" };
+
+  /* ---------- Zusammenführen ---------- */
+  function keyOf(cat, x) {
+    var parts = cat === "karriere" ? [x.firma, x.titel, x.start]
+      : cat === "qualifikationen" ? [x.art, x.name, x.aussteller]
+      : [x.name];
+    return parts.map(function (s) { return norm(s || ""); }).join("|");
+  }
+  function sortKey(x) {
+    var m = /^(\d{4})(?:-(\d{2}))?$/.exec(x.start || x.ende || "");
+    return m ? (+m[1]) * 12 + (m[2] ? +m[2] : 1) : -1;
+  }
+  function mergeList(cat, imported, prevList) {
+    var pm = {}; (prevList || []).forEach(function (x) { pm[keyOf(cat, x)] = x; });
+    var res = imported.map(function (x) {
+      var q = pm[keyOf(cat, x)];
+      x.sichtbar = q ? q.sichtbar !== false : true;
+      return x;
+    });
+    var have = {}; res.forEach(function (x) { have[keyOf(cat, x)] = 1; });
+    (prevList || []).forEach(function (x) { if (x.manuell && !have[keyOf(cat, x)]) res.push(x); });
+    if (cat !== "kompetenzen") res.sort(function (a, b) { return sortKey(b) - sortKey(a); });
+    return res;
+  }
+
+  function rebuild() {
+    var prev = state.data || state.prev || {};
+    var im = state.imported;
+    var out = {};
+    Object.keys(prev).forEach(function (k) { out[k] = prev[k]; });
+    var p = { name: "", titel: "", kurzprofil: "", ort: "", linkedin: "", email: "", foto: "" };
+    Object.keys(prev.profil || {}).forEach(function (k) { p[k] = prev.profil[k]; });
+    if (im.profile) {
+      ["name", "titel", "kurzprofil"].forEach(function (k) { if (!p[k]) p[k] = im.profile[k] || ""; });
+    }
+    out.profil = p;
+    out.karriere = im.positions ? mergeList("karriere", im.positions.slice(), prev.karriere) : (prev.karriere || []);
+    var q = [];
+    var haveEdu = im.education !== null, haveCert = im.certs !== null;
+    var prevQ = prev.qualifikationen || [];
+    if (haveEdu || haveCert) {
+      var pe = prevQ.filter(function (x) { return x.art === "ausbildung"; });
+      var pc = prevQ.filter(function (x) { return x.art !== "ausbildung"; });
+      q = q.concat(haveEdu ? mergeList("qualifikationen", im.education.slice(), pe) : pe);
+      q = q.concat(haveCert ? mergeList("qualifikationen", im.certs.slice(), pc) : pc);
+      q.sort(function (a, b) { return sortKey(b) - sortKey(a); });
+    } else q = prevQ;
+    out.qualifikationen = q;
+    out.kompetenzen = im.skills ? mergeList("kompetenzen", im.skills.slice(), prev.kompetenzen) : (prev.kompetenzen || []);
+    var d = new Date();
+    out.meta = { erstellt: d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()), quelle: "LinkedIn-Export" };
+    state.data = out;
+  }
+
+  /* ---------- Vorschau ---------- */
+  var MONTHS = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+  function fmt(s) {
+    var m = /^(\d{4})(?:-(\d{2}))?$/.exec(s || "");
+    return m ? (m[2] ? MONTHS[+m[2] - 1] + " " : "") + m[1] : "";
+  }
+  function rng(a, b) { return a ? fmt(a) + " – " + (b ? fmt(b) : "heute") : (b ? "bis " + fmt(b) : ""); }
+
+  function renderList(cat, ul, counter, describe) {
+    var list = state.data[cat] || [];
+    ul.textContent = "";
+    list.forEach(function (x) {
+      var d = describe(x);
+      var li = document.createElement("li");
+      var lab = document.createElement("label");
+      var cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = x.sichtbar !== false;
+      cb.addEventListener("change", function () { x.sichtbar = cb.checked; count(); });
+      var box = document.createElement("div");
+      var t = document.createElement("div"); t.className = "t"; t.textContent = d[0];
+      var s = document.createElement("div"); s.className = "s"; s.textContent = d[1];
+      box.appendChild(t); if (d[1]) box.appendChild(s);
+      lab.appendChild(cb); lab.appendChild(box); li.appendChild(lab); ul.appendChild(li);
+    });
+    if (!list.length) { var e = document.createElement("li"); e.className = "s"; e.style.color = "var(--muted)"; e.textContent = "Keine Einträge (Datei noch nicht hinzugefügt?)"; ul.appendChild(e); }
+    function count() {
+      var v = list.filter(function (x) { return x.sichtbar !== false; }).length;
+      counter.textContent = v + " von " + list.length + " sichtbar";
+    }
+    count();
+  }
+
+  function render() {
+    $("edit").hidden = false; $("out").hidden = false;
+    var p = state.data.profil;
+    ["name", "titel", "kurzprofil", "ort", "linkedin", "email", "foto"].forEach(function (k) { $("f_" + k).value = p[k] || ""; });
+    renderList("karriere", $("l_karriere"), $("c_karriere"), function (x) {
+      return [(x.titel || "") + (x.titel && x.firma ? " · " : "") + (x.firma || ""), rng(x.start, x.ende) + (x.ort ? " · " + x.ort : "")];
+    });
+    renderList("qualifikationen", $("l_qualifikationen"), $("c_qualifikationen"), function (x) {
+      var isEdu = x.art === "ausbildung";
+      var when = isEdu ? rng(x.start, x.ende)
+        : [x.start ? "erworben " + fmt(x.start) : "", x.ende ? "gültig bis " + fmt(x.ende) : ""].filter(Boolean).join(" · ");
+      return [x.name + (isEdu ? "  (Ausbildung)" : "  (Zertifikat)"), [x.aussteller, when].filter(Boolean).join(" · ")];
+    });
+    renderList("kompetenzen", $("l_kompetenzen"), $("c_kompetenzen"), function (x) { return [x.name, ""]; });
+    checkWarn();
+  }
+
+  function checkWarn() {
+    var msgs = [];
+    if (!state.data.profil.name) msgs.push("Bitte einen Namen eintragen.");
+    if (state.data.profil.email) msgs.push("Achtung: Die E-Mail-Adresse wird öffentlich auf der Seite angezeigt (Spam-Risiko).");
+    var w = $("warn"); w.textContent = msgs.join(" "); w.hidden = !msgs.length;
+  }
+
+  ["name", "titel", "kurzprofil", "ort", "linkedin", "email", "foto"].forEach(function (k) {
+    $("f_" + k).addEventListener("input", function (e) { if (state.data) { state.data.profil[k] = e.target.value.trim(); checkWarn(); } });
+  });
+
+  /* ---------- Dateien verarbeiten ---------- */
+  function basename(n) { return n.split(/[\\/]/).pop().toLowerCase(); }
+  function decode(bytes) { return new TextDecoder("utf-8").decode(bytes); }
+
+  function takeCSV(kind, text, label) {
+    var res = PARSERS[kind](parseCSV(text));
+    if (res === null) { log("err", label + ": erwartete Spalten nicht gefunden – Format prüfen."); return; }
+    state.imported[kind] = res;
+    log("ok", label + ": " + (kind === "profile" ? "Name/Headline/Kurzprofil gelesen" : res.length + " Einträge"));
+  }
+
+  function takePrevData(text, label) {
+    try {
+      var json = text.replace(/^\s*window\.SITE_DATA\s*=\s*/, "").replace(/;\s*$/, "");
+      state.prev = JSON.parse(json);
+      state.data = null; // Basis neu setzen
+      log("ok", label + ": bisherige Daten geladen (Ausblendungen und Profilangaben bleiben erhalten)");
+    } catch (e) { log("err", label + ": konnte nicht gelesen werden."); }
+  }
+
+  async function handleFiles(files) {
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i], lname = f.name.toLowerCase();
+      try {
+        if (lname.endsWith(".zip")) {
+          var zip = await readZip(await f.arrayBuffer());
+          var found = 0, other = 0;
+          for (var j = 0; j < zip.entries.length; j++) {
+            var e = zip.entries[j];
+            if (/\/$/.test(e.name)) continue;
+            var kind = WHITELIST[basename(e.name)];
+            if (kind) { found++; takeCSV(kind, decode(await zip.extract(e)), LABEL[kind]); }
+            else other++;
+          }
+          ignoredCount += other;
+          if (!found) log("err", f.name + ": keine der erwarteten Dateien gefunden (Positions, Education, Certifications, Skills, Profile).");
+          log("skip", f.name + ": " + other + " weitere Dateien bewusst nicht gelesen (Datenschutz)");
+        } else if (lname.endsWith(".csv")) {
+          var k2 = WHITELIST[lname];
+          if (k2) takeCSV(k2, await f.text(), LABEL[k2]);
+          else log("skip", f.name + ": wird nicht verwendet");
+        } else if (lname.endsWith(".js")) {
+          takePrevData(await f.text(), f.name);
+        } else log("skip", f.name + ": unbekanntes Format");
+      } catch (err) { log("err", f.name + ": " + err.message); }
+    }
+    var any = state.prev || Object.keys(state.imported).some(function (k) { return state.imported[k] !== null; });
+    if (any) { rebuild(); render(); }
+  }
+
+  /* ---------- Bedienung ---------- */
+  var drop = $("drop"), input = $("file");
+  drop.addEventListener("click", function () { input.click(); });
+  drop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+  input.addEventListener("change", function () { handleFiles(input.files); input.value = ""; });
+  ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("over"); }); });
+  drop.addEventListener("drop", function (e) { handleFiles(e.dataTransfer.files); });
+  window.addEventListener("dragover", function (e) { e.preventDefault(); });
+  window.addEventListener("drop", function (e) { e.preventDefault(); });
+
+  $("dl").addEventListener("click", function () {
+    if (!state.data) return;
+    var txt = "window.SITE_DATA = " + JSON.stringify(state.data, null, 2) + ";\n";
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([txt], { type: "text/javascript" }));
+    a.download = "daten.js";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+  });
+  $("reset").addEventListener("click", function () { location.reload(); });
+
+  // Für automatische Tests
+  window.__state = state;
+})();
+</script>
+</body>
+</html>

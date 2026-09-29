@@ -1,0 +1,3 @@
+Hier die Projekt-Screenshots ablegen (PNG oder JPG, Querformat ca. 1600x1000):
+  wetter.png, aktien.png, carfinder.png
+Die Dateinamen stehen in data/projekte.js. Bitte keine Screenshots mit privaten Daten (Kontostände, Adressen, Tokens) veroeffentlichen.

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Persönliche Homepage</title>
+  <meta name="description" content="Beruflicher Werdegang, Qualifikationen und Kompetenzen – kompakt und aktuell.">
+  <meta name="color-scheme" content="light dark">
+  <!-- Verhindert versehentliches Nachladen externer Inhalte (Datenschutz) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Zum Inhalt springen</a>
+
+  <header class="topbar">
+    <div class="wrap topbar-in">
+      <a class="brand" id="brand" href="#person">Startseite</a>
+      <nav class="tabs" id="tabs" role="tablist" aria-label="Bereiche"></nav>
+    </div>
+  </header>
+
+  <main class="wrap" id="main" role="tabpanel" tabindex="-1">
+    <noscript><p>Diese Seite benötigt JavaScript, um den Inhalt anzuzeigen.</p></noscript>
+  </main>
+
+  <footer class="wrap foot">
+    <span id="copy"></span>
+    <nav aria-label="Rechtliches">
+      <a href="datenschutz.html">Datenschutz</a>
+    </nav>
+  </footer>
+
+  <script src="data/config.js"></script>
+  <script src="data/daten.js"></script>
+  <script src="data/projekte.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
