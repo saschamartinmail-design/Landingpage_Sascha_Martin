@@ -307,7 +307,7 @@
     var items = PROJEKTE.filter(function (p) { return p && p.sichtbar !== false; });
     var head = h("div", { class: "page-head" }, [
       h("h1", { text: "Projekte" }),
-      h("p", { text: "Kleine Werkzeuge und Experimente – jeweils kurz erklärt." })
+      h("p", { text: "Berufliche und private Projektreferenzen – jeweils kurz vorgestellt." })
     ]);
     if (!items.length) return h("div", null, [head, h("p", { class: "empty", text: "Noch keine Projekte eingetragen." })]);
 
