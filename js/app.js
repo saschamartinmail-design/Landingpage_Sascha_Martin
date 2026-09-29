@@ -227,6 +227,35 @@
     car: "M5 17h14M6 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm12 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM4 13l1.5-5A2 2 0 0 1 7.4 6.5h9.2a2 2 0 0 1 1.9 1.5L20 13v4H4v-4Z",
     chip: "M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3M7 7h10v10H7V7Z"
   };
+  /* ---------- Lightbox: Screenshot in Vollbild ---------- */
+  function lightboxEl() {
+    var el = document.getElementById("lightbox");
+    if (el) return el;
+    el = h("div", { class: "lightbox", id: "lightbox", role: "dialog", "aria-modal": "true", "aria-label": "Screenshot, groß" }, [
+      h("button", { class: "lightbox-close", type: "button", "aria-label": "Schließen" }, [svg("M6 6l12 12M18 6 6 18")]),
+      h("img", { class: "lightbox-img", alt: "" })
+    ]);
+    document.body.appendChild(el);
+    el.addEventListener("click", function (e) {
+      if (e.target === el || e.target.closest(".lightbox-close")) closeLightbox();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && el.classList.contains("is-open")) closeLightbox();
+    });
+    return el;
+  }
+  function openLightbox(src, alt) {
+    var el = lightboxEl();
+    var img = el.querySelector(".lightbox-img");
+    img.src = src;
+    img.alt = alt || "";
+    el.classList.add("is-open");
+  }
+  function closeLightbox() {
+    var el = document.getElementById("lightbox");
+    if (el) el.classList.remove("is-open");
+  }
+
   function shot(p, small) {
     var box = h("div", { class: "pshot" + (small ? " pshot-sm" : "") });
     function placeholder() {
@@ -236,8 +265,10 @@
       if (!small) box.appendChild(h("span", { text: "Screenshot folgt" }));
     }
     if (p.bild && /^[\w\-./]+$/.test(p.bild)) {
-      var img = h("img", { src: p.bild, alt: "Screenshot: " + p.titel, loading: "lazy" });
+      var img = h("img", { src: p.bild, alt: "Screenshot: " + p.titel, loading: "lazy", tabindex: "0", role: "button", "aria-label": "Screenshot von " + p.titel + " groß anzeigen" });
       img.addEventListener("error", placeholder);
+      img.addEventListener("click", function () { openLightbox(p.bild, "Screenshot: " + p.titel); });
+      img.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openLightbox(p.bild, "Screenshot: " + p.titel); } });
       box.appendChild(img);
     } else placeholder();
     return box;
